@@ -59,36 +59,42 @@
   with_items:
     - "{{ nginx_sites }}"
 
-- name: Delete the links to delete site configurations for letsencrypt
-  file: path=/etc/nginx/sites-enabled/{{ item.file_name }} state=absent src=/etc/nginx/sites-available/{{ item.file_name }}
-  with_items: "{{nginx_sites}}"
+- name: Preserve list of letsencrypt sites
+  template: src=nginx.sites.j2 dest=/srv/www/letsencrypt/.repleo.nginx.sites
+  register: nginx_letsencrypt_sites
 
-- name: Create the configurations for sites
-  template: src=site_letsencrypt.j2 dest=/etc/nginx/sites-available/{{ item.file_name }}
-  with_items:
-    - "{{nginx_sites}}"
-  when:
-    - item.ssl is defined
-    - item.ssl != None
-    - item.ssl.supplier == "letsencrypt"
+- when: nginx_letsencrypt_sites.changed
+  block:
+  - name: Delete the links to delete site configurations for letsencrypt
+    file: path=/etc/nginx/sites-enabled/{{ item.file_name }} state=absent src=/etc/nginx/sites-available/{{ item.file_name }}
+    with_items: "{{nginx_sites}}"
 
-- name: Create the links to enable site configurations for letsencrypt
-  file: path=/etc/nginx/sites-enabled/{{ item.file_name }} state=link src=/etc/nginx/sites-available/{{ item.file_name }}
-  with_items:
-    - "{{nginx_sites}}"
-  when:
-    - item.ssl is defined
-    - item.ssl != None
-    - item.ssl.supplier == "letsencrypt"
+  - name: Create the configurations for sites
+    template: src=site_letsencrypt.j2 dest=/etc/nginx/sites-available/{{ item.file_name }}
+    with_items:
+      - "{{nginx_sites}}"
+    when:
+      - item.ssl is defined
+      - item.ssl != None
+      - item.ssl.supplier == "letsencrypt"
 
-- name: reload nginx
-  service: name=nginx state=reloaded
-  with_items:
-    - "{{nginx_sites}}"
-  when:
-    - item.ssl is defined
-    - item.ssl != None
-    - item.ssl.supplier == "letsencrypt"
+  - name: Create the links to enable site configurations for letsencrypt
+    file: path=/etc/nginx/sites-enabled/{{ item.file_name }} state=link src=/etc/nginx/sites-available/{{ item.file_name }}
+    with_items:
+      - "{{nginx_sites}}"
+    when:
+      - item.ssl is defined
+      - item.ssl != None
+      - item.ssl.supplier == "letsencrypt"
+
+  - name: reload nginx
+    service: name=nginx state=reloaded
+    with_items:
+      - "{{nginx_sites}}"
+    when:
+      - item.ssl is defined
+      - item.ssl != None
+      - item.ssl.supplier == "letsencrypt"
 
 - name: configure certbot webroot plugin
   command: certbot certonly -n --expand --webroot -w "/srv/www/letsencrypt/{{item.file_name}}" -d "{{item.ssl.domains|join(',')}}" --cert-name "{{ item.file_name }}"

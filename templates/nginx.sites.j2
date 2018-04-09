@@ -1,0 +1,5 @@
+{% for item in nginx_sites %}
+{% if item.ssl is defined and item.ssl != None and item.ssl.supplier == "letsencrypt" %}
+{{ item.file_name }}
+{% endif %}
+{% endfor %}
